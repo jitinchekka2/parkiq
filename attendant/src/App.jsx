@@ -38,6 +38,15 @@ export default function AttendantApp() {
     setTimeout(() => setFeedback(''), 2000);
   };
 
+  const logout = () => {
+    localStorage.removeItem('a_token');
+    setToken(null);
+    setSpots([]);
+    setOtp('');
+    setFeedback('');
+    setStep('phone');
+  };
+
   if (step === 'phone' || step === 'otp') {
     return (
       <div style={{ minHeight: '100vh', background: '#0A0A0F', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
@@ -61,8 +70,14 @@ export default function AttendantApp() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#F5F2EC', fontFamily: 'system-ui' }}>
-      <div style={{ background: '#0A0A0F', color: 'white', padding: '16px 20px', fontWeight: 800, fontSize: 18 }}>
-        🅿 Attendant Panel
+      <div style={{ background: '#0A0A0F', color: 'white', padding: '16px 20px', fontWeight: 800, fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span>🅿 Attendant Panel</span>
+        <button
+          onClick={logout}
+          style={{ background: 'white', color: '#0A0A0F', border: '1px solid #ddd', borderRadius: 10, padding: '8px 14px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
+        >
+          Logout
+        </button>
       </div>
       <div style={{ padding: 16 }}>
         {feedback && <div style={{ background: '#00C48C', color: 'white', borderRadius: 10, padding: '10px 16px', marginBottom: 12, fontWeight: 600 }}>{feedback}</div>}

@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import api from '../lib/api';
+import { useAuth } from '../store/auth';
 
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const [spots, setSpots] = useState([]);
+  const { logout } = useAuth();
 
   useEffect(() => {
     api.get('/api/analytics/operator').then(r => setStats(r.data.stats));
@@ -26,6 +28,12 @@ export default function Dashboard() {
     <div style={{ minHeight: '100vh', background: '#F5F2EC', fontFamily: 'system-ui' }}>
       <div style={{ background: '#0A0A0F', color: 'white', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ fontWeight: 800, fontSize: 20 }}>🅿 ParkIQ Operator</span>
+        <button
+          onClick={logout}
+          style={{ background: 'white', color: '#0A0A0F', border: '1px solid #ddd', borderRadius: 10, padding: '8px 14px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
+        >
+          Logout
+        </button>
       </div>
 
       <div style={{ padding: 24 }}>
