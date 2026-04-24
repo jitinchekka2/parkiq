@@ -1,10 +1,24 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import './index.css'
-import App from './App.jsx'
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useAuth } from './store/auth';
+import Login from './pages/Login';
+import MapView from './pages/Map';
+import Book from './pages/Book';
+import BookingSuccess from './pages/BookingSuccess';
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+function PrivateRoute({ children }) {
+  const { token } = useAuth();
+  return token ? children : <Navigate to="/login" />;
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <BrowserRouter>
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/" element={<PrivateRoute><MapView /></PrivateRoute>} />
+      <Route path="/book/:id" element={<PrivateRoute><Book /></PrivateRoute>} />
+      <Route path="/booking/:id" element={<PrivateRoute><BookingSuccess /></PrivateRoute>} />
+    </Routes>
+  </BrowserRouter>
+);
