@@ -1,0 +1,80 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  phone     String   @unique
+  name      String?
+  role      Role     @default(DRIVER)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  bookings  Booking[]
+  lots      ParkingLot[]
+}
+
+enum Role {
+  DRIVER
+  OPERATOR
+  ATTENDANT
+  ADMIN
+}
+
+model OTP {
+  id        String   @id @default(cuid())
+  phone     String
+  code      String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model ParkingLot {
+  id          String   @id @default(cuid())
+  operatorId  String
+  mongoSpotId String   @unique
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  operator    User     @relation(fields: [operatorId], references: [id])
+  bookings    Booking[]
+}
+
+model Booking {
+  id          String        @id @default(cuid())
+  userId      String
+  lotId       String
+  startTime   DateTime
+  endTime     DateTime
+  status      BookingStatus @default(PENDING)
+  amountPaise Int
+  paymentId   String?
+  qrCode      String        @unique
+  checkedIn   Boolean       @default(false)
+  createdAt   DateTime      @default(now())
+  user        User          @relation(fields: [userId], references: [id])
+  lot         ParkingLot    @relation(fields: [lotId], references: [id])
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+model Payment {
+  id           String   @id @default(cuid())
+  bookingId    String   @unique
+  razorpayId   String
+  amount       Int
+  status       String
+  method       String?
+  createdAt    DateTime @default(now())
+}
