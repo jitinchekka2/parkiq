@@ -8,14 +8,30 @@ const { redis, keys } = require('../services/redis');
 const auth = require('../middleware/auth');
 
 const prisma = new PrismaClient();
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY,
-  key_secret: process.env.RAZORPAY_SECRET,
-});
+
+const hasRazorpayConfig = () => Boolean(process.env.RAZORPAY_KEY && process.env.RAZORPAY_SECRET);
+
+const getRazorpayClient = () => {
+  if (!hasRazorpayConfig()) {
+    return null;
+  }
+
+  return new Razorpay({
+    key_id: process.env.RAZORPAY_KEY,
+    key_secret: process.env.RAZORPAY_SECRET,
+  });
+};
 
 // POST /api/bookings — Create booking + Razorpay order
 router.post('/', auth, async (req, res) => {
   try {
+    const razorpay = getRazorpayClient();
+    if (!razorpay) {
+      return res.status(503).json({
+        error: 'Payments are not configured on the server',
+      });
+    }
+
     const { spotId, lotId, hours } = req.body;
 
     if (!spotId) return res.status(400).json({ error: 'spotId is required' });
@@ -105,37 +121,48 @@ router.post('/', auth, async (req, res) => {
 
 // POST /api/bookings/verify-payment — After Razorpay callback
 router.post('/verify-payment', auth, async (req, res) => {
-  const { razorpay_order_id, razorpay_payment_id, razorpay_signature, bookingId, spotId } = req.body;
+  try {
+    if (!hasRazorpayConfig()) {
+      return res.status(503).json({
+        error: 'Payments are not configured on the server',
+      });
+    }
 
-  // Verify signature
-  const body = razorpay_order_id + '|' + razorpay_payment_id;
-  const expected = crypto.createHmac('sha256', process.env.RAZORPAY_SECRET).update(body).digest('hex');
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, bookingId, spotId } = req.body;
 
-  if (expected !== razorpay_signature) {
-    return res.status(400).json({ error: 'Payment verification failed' });
+    // Verify signature
+    const body = razorpay_order_id + '|' + razorpay_payment_id;
+    const expected = crypto.createHmac('sha256', process.env.RAZORPAY_SECRET).update(body).digest('hex');
+
+    if (expected !== razorpay_signature) {
+      return res.status(400).json({ error: 'Payment verification failed' });
+    }
+
+    // Confirm booking
+    const booking = await prisma.booking.update({
+      where: { id: bookingId },
+      data: { status: 'CONFIRMED', paymentId: razorpay_payment_id }
+    });
+
+    await prisma.payment.create({
+      data: { bookingId, razorpayId: razorpay_payment_id, amount: booking.amountPaise, status: 'captured' }
+    });
+
+    // Decrement Redis availability permanently
+    await redis.decr(keys.spotAvailability(spotId));
+    await redis.del(keys.bookingHold(spotId, req.user.id));
+
+    req.io.emit('spot:update', {
+      spotId,
+      available: parseInt(await redis.get(keys.spotAvailability(spotId)))
+    });
+
+    const qrCode = await QRCode.toDataURL(booking.qrCode);
+    res.json({ success: true, booking: { ...booking, qrCode } });
+  } catch (err) {
+    console.error('Payment verification failed:', err);
+    res.status(500).json({ error: 'Failed to verify payment' });
   }
-
-  // Confirm booking
-  const booking = await prisma.booking.update({
-    where: { id: bookingId },
-    data: { status: 'CONFIRMED', paymentId: razorpay_payment_id }
-  });
-
-  await prisma.payment.create({
-    data: { bookingId, razorpayId: razorpay_payment_id, amount: booking.amountPaise, status: 'captured' }
-  });
-
-  // Decrement Redis availability permanently
-  await redis.decr(keys.spotAvailability(spotId));
-  await redis.del(keys.bookingHold(spotId, req.user.id));
-
-  req.io.emit('spot:update', {
-    spotId,
-    available: parseInt(await redis.get(keys.spotAvailability(spotId)))
-  });
-
-  const qrCode = await QRCode.toDataURL(booking.qrCode);
-  res.json({ success: true, booking: { ...booking, qrCode } });
 });
 
 // GET /api/bookings/my — Driver's bookings

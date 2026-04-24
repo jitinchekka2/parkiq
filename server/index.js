@@ -66,9 +66,13 @@ app.use(express.json());
 app.use((req, _, next) => { req.io = io; next(); });
 
 // MongoDB
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('✅ MongoDB connected'))
-  .catch(err => console.error('MongoDB error:', err));
+if (process.env.MONGODB_URI) {
+  mongoose.connect(process.env.MONGODB_URI)
+    .then(() => console.log('✅ MongoDB connected'))
+    .catch(err => console.error('MongoDB error:', err));
+} else {
+  console.warn('⚠️ MONGODB_URI is not set; MongoDB-dependent routes may fail');
+}
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));

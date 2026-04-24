@@ -6,7 +6,17 @@ const { PrismaClient } = require('@prisma/client');
 const { redis, keys } = require('../services/redis');
 
 const prisma = new PrismaClient();
-const client = twilio(process.env.TWILIO_SID, process.env.TWILIO_AUTH);
+const hasTwilioConfig = Boolean(
+  process.env.TWILIO_SID && process.env.TWILIO_AUTH && process.env.TWILIO_PHONE
+);
+const twilioClient = hasTwilioConfig
+  ? twilio(process.env.TWILIO_SID, process.env.TWILIO_AUTH)
+  : null;
+
+const shouldBypassSms = () => {
+  if (process.env.OTP_BYPASS_SMS === 'true') return true;
+  return process.env.NODE_ENV !== 'production';
+};
 
 // POST /api/auth/send-otp
 router.post('/send-otp', async (req, res) => {
@@ -20,18 +30,39 @@ router.post('/send-otp', async (req, res) => {
   // Store in Redis with 10 min expiry
   await redis.setex(keys.otpCode(phone), 600, otp);
 
+  if (!twilioClient) {
+    if (shouldBypassSms()) {
+      return res.json({
+        success: true,
+        otp,
+        message: 'SMS bypass enabled: OTP returned directly',
+      });
+    }
+    return res.status(503).json({ error: 'OTP service unavailable' });
+  }
+
   try {
-    await client.messages.create({
+    await twilioClient.messages.create({
       body: `Your ParkIQ OTP is ${otp}. Valid for 10 minutes.`,
       from: process.env.TWILIO_PHONE,
       to: `+91${phone}`
     });
     res.json({ success: true, message: 'OTP sent' });
   } catch (err) {
-    // In dev, just return OTP directly
-    if (process.env.NODE_ENV === 'development') {
-      return res.json({ success: true, otp, message: 'Dev mode: OTP returned directly' });
+    console.error('OTP send failed:', {
+      code: err.code,
+      message: err.message,
+      status: err.status,
+    });
+
+    if (shouldBypassSms()) {
+      return res.json({
+        success: true,
+        otp,
+        message: 'SMS failed; OTP returned directly due to bypass mode',
+      });
     }
+
     res.status(500).json({ error: 'Failed to send OTP' });
   }
 });
