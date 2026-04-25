@@ -22,7 +22,11 @@ export default function Login() {
             if (res.data.otp) setDevOtp(`Dev OTP: ${res.data.otp}`);
             setStep('otp');
         } catch (e) {
-            alert(e.response?.data?.error || 'Failed to send OTP');
+            if (!e.response) {
+                alert('Unable to reach API server. Please check network/DNS and operator API URL configuration.');
+            } else {
+                alert(e.response?.data?.error || 'Failed to send OTP');
+            }
         }
         setLoading(false);
     };

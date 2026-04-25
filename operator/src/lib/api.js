@@ -1,7 +1,15 @@
 import axios from 'axios';
 
+const sanitizeBaseUrl = (url) => (url || '').trim().replace(/\/+$/, '');
+
+const FALLBACK_BASE_URLS = [
+    sanitizeBaseUrl(import.meta.env.VITE_API_URL),
+    'https://parkiq-api-v2-production.up.railway.app',
+    'https://parkiq-api-production.up.railway.app',
+].filter((url, index, arr) => Boolean(url) && arr.indexOf(url) === index);
+
 const api = axios.create({
-    baseURL: import.meta.env.VITE_API_URL,
+    baseURL: FALLBACK_BASE_URLS[0],
 });
 
 const getStoredToken = () => {
@@ -44,5 +52,30 @@ api.interceptors.request.use((config) => {
 
     return config;
 });
+
+api.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+        const config = error?.config;
+        if (!config) throw error;
+
+        const isNetworkFailure = !error?.response;
+        if (!isNetworkFailure) throw error;
+
+        const attempted = Array.isArray(config.__attemptedBaseUrls) ? config.__attemptedBaseUrls : [];
+        const currentBase = sanitizeBaseUrl(config.baseURL || api.defaults.baseURL || '');
+        const attemptedWithCurrent = currentBase ? [...attempted, currentBase] : attempted;
+        const nextBase = FALLBACK_BASE_URLS.find((base) => !attemptedWithCurrent.includes(base));
+
+        if (!nextBase) {
+            throw error;
+        }
+
+        config.baseURL = nextBase;
+        config.__attemptedBaseUrls = attemptedWithCurrent;
+
+        return api.request(config);
+    }
+);
 
 export default api;
