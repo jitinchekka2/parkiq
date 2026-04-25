@@ -139,10 +139,21 @@ export default function MyBookings() {
                                             </div>
                                         </div>
                                         <div>
-                                            <div style={{ fontSize: 12, color: '#777' }}>Lot Ref</div>
-                                            <div style={{ fontWeight: 600, marginTop: 2 }}>{booking.lot?.mongoSpotId || booking.lotId}</div>
+                                            <div style={{ fontSize: 12, color: '#777' }}>Lot Name</div>
+                                            <div style={{ fontWeight: 600, marginTop: 2 }}>{booking.lotName || 'Unknown Lot'}</div>
                                         </div>
                                     </div>
+
+                                    {booking.qrCodeImage && (
+                                        <div style={{ marginTop: 14 }}>
+                                            <div style={{ fontSize: 12, color: '#777', marginBottom: 8 }}>QR Code</div>
+                                            <img
+                                                src={booking.qrCodeImage}
+                                                alt={`QR for booking ${booking.id}`}
+                                                style={{ width: 120, height: 120, borderRadius: 10, border: '1px solid #eee', background: 'white' }}
+                                            />
+                                        </div>
+                                    )}
 
                                     <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
                                         <button

@@ -172,7 +172,34 @@ router.get('/my', auth, async (req, res) => {
     include: { lot: true },
     orderBy: { createdAt: 'desc' }
   });
-  res.json({ success: true, bookings });
+
+  const ParkingSpot = require('../models/ParkingSpot');
+  const mongoSpotIds = [...new Set(bookings.map((booking) => booking.lot?.mongoSpotId).filter(Boolean))];
+
+  let spotNameById = {};
+  if (mongoSpotIds.length > 0) {
+    const spots = await ParkingSpot.find({ _id: { $in: mongoSpotIds } }).select('_id name').lean();
+    spotNameById = Object.fromEntries(spots.map((spot) => [String(spot._id), spot.name]));
+  }
+
+  const bookingsWithDetails = await Promise.all(
+    bookings.map(async (booking) => {
+      let qrCodeImage = null;
+      try {
+        qrCodeImage = await QRCode.toDataURL(booking.qrCode);
+      } catch {
+        qrCodeImage = null;
+      }
+
+      return {
+        ...booking,
+        lotName: spotNameById[booking.lot?.mongoSpotId] || 'Unknown Lot',
+        qrCodeImage,
+      };
+    })
+  );
+
+  res.json({ success: true, bookings: bookingsWithDetails });
 });
 
 // POST /api/bookings/:id/checkin — Operator scans QR
