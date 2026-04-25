@@ -7,6 +7,7 @@ import Login from './pages/Login';
 import MapView from './pages/Map';
 import Book from './pages/Book';
 import BookingSuccess from './pages/BookingSuccess';
+import MyBookings from './pages/MyBookings';
 
 function PrivateRoute({ children }) {
   const { token } = useAuth();
@@ -21,6 +22,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <Route path="/map" element={<PrivateRoute><MapView /></PrivateRoute>} />
       <Route path="/book/:id" element={<PrivateRoute><Book /></PrivateRoute>} />
       <Route path="/booking/:id" element={<PrivateRoute><BookingSuccess /></PrivateRoute>} />
+      <Route path="/my-bookings" element={<PrivateRoute><MyBookings /></PrivateRoute>} />
     </Routes>
   </BrowserRouter>
 );

@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 
 const API = import.meta.env.VITE_API_URL;
+const ATTENDANT_SEARCH_RADIUS_METERS = 20000;
 
 export default function AttendantApp() {
   const [spots, setSpots] = useState([]);
   const [token, setToken] = useState(localStorage.getItem('a_token'));
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
+  const [devOtp, setDevOtp] = useState('');
   const [step, setStep] = useState(token ? 'home' : 'phone');
   const [feedback, setFeedback] = useState('');
 
@@ -15,13 +17,14 @@ export default function AttendantApp() {
 
   useEffect(() => {
     if (token) {
-      axios.get(`${API}/api/spots?lat=17.4065&lng=78.4772&radius=500`, { headers })
+      axios.get(`${API}/api/spots?lat=17.4065&lng=78.4772&radius=${ATTENDANT_SEARCH_RADIUS_METERS}`, { headers })
         .then(r => setSpots(r.data.spots));
     }
   }, [token]);
 
   const sendOtp = async () => {
-    await axios.post(`${API}/api/auth/send-otp`, { phone });
+    const res = await axios.post(`${API}/api/auth/send-otp`, { phone });
+    if (res.data?.otp) setDevOtp(`Dev OTP: ${res.data.otp}`);
     setStep('otp');
   };
 
@@ -29,6 +32,7 @@ export default function AttendantApp() {
     const res = await axios.post(`${API}/api/auth/verify-otp`, { phone, otp });
     localStorage.setItem('a_token', res.data.token);
     setToken(res.data.token);
+    setDevOtp('');
     setStep('home');
   };
 
@@ -43,6 +47,7 @@ export default function AttendantApp() {
     setToken(null);
     setSpots([]);
     setOtp('');
+    setDevOtp('');
     setFeedback('');
     setStep('phone');
   };
@@ -52,6 +57,11 @@ export default function AttendantApp() {
       <div style={{ minHeight: '100vh', background: '#0A0A0F', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
         <div style={{ background: 'white', borderRadius: 16, padding: 28, width: '100%', maxWidth: 340 }}>
           <div style={{ fontWeight: 800, fontSize: 22, marginBottom: 20 }}>Attendant Login</div>
+          {devOtp && (
+            <div style={{ background: '#FFF3CD', borderRadius: 8, padding: '8px 12px', marginBottom: 14, fontSize: 13, fontWeight: 600 }}>
+              {devOtp}
+            </div>
+          )}
           {step === 'phone' ? (
             <>
               <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="Mobile number" style={{ width: '100%', padding: 14, borderRadius: 10, border: '1.5px solid #ddd', fontSize: 16, marginBottom: 14, boxSizing: 'border-box' }} />
@@ -80,6 +90,9 @@ export default function AttendantApp() {
         </button>
       </div>
       <div style={{ padding: 16 }}>
+        <div style={{ background: '#EEF2FF', color: '#1E3A8A', borderRadius: 10, padding: '10px 14px', marginBottom: 12, fontWeight: 600, fontSize: 13 }}>
+          Showing spots within {ATTENDANT_SEARCH_RADIUS_METERS / 1000} km radius
+        </div>
         {feedback && <div style={{ background: '#00C48C', color: 'white', borderRadius: 10, padding: '10px 16px', marginBottom: 12, fontWeight: 600 }}>{feedback}</div>}
         {spots.map(spot => (
           <div key={spot._id} style={{ background: 'white', borderRadius: 14, padding: 20, marginBottom: 12 }}>
