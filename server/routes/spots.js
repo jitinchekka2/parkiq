@@ -5,6 +5,14 @@ const CrowdReport = require('../models/CrowdReport');
 const { redis, keys } = require('../services/redis');
 const auth = require('../middleware/auth');
 
+const enrichSpotWithAvailability = async (spot) => {
+  const available = await redis.get(keys.spotAvailability(spot._id.toString()));
+  return {
+    ...spot.toObject(),
+    available: available !== null ? parseInt(available) : spot.totalSlots,
+  };
+};
+
 // GET /api/spots?lat=&lng=&radius=&type=
 router.get('/', async (req, res) => {
   const { lat, lng, radius = 3000, type } = req.query;
@@ -24,13 +32,19 @@ router.get('/', async (req, res) => {
   const spots = await ParkingSpot.find(query).limit(20);
 
   // Enrich with live availability from Redis
-  const enriched = await Promise.all(spots.map(async (spot) => {
-    const available = await redis.get(keys.spotAvailability(spot._id.toString()));
-    return {
-      ...spot.toObject(),
-      available: available !== null ? parseInt(available) : spot.totalSlots,
-    };
-  }));
+  const enriched = await Promise.all(spots.map(enrichSpotWithAvailability));
+
+  res.json({ success: true, spots: enriched });
+});
+
+// GET /api/spots/mine — Fetch logged-in operator spots
+router.get('/mine', auth, async (req, res) => {
+  if (!['OPERATOR', 'ADMIN'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Operators only' });
+  }
+
+  const spots = await ParkingSpot.find({ operatorId: req.user.id, isActive: true }).sort({ createdAt: -1 });
+  const enriched = await Promise.all(spots.map(enrichSpotWithAvailability));
 
   res.json({ success: true, spots: enriched });
 });
@@ -40,13 +54,9 @@ router.get('/:id', async (req, res) => {
   const spot = await ParkingSpot.findById(req.params.id);
   if (!spot) return res.status(404).json({ error: 'Spot not found' });
 
-  const available = await redis.get(keys.spotAvailability(spot._id.toString()));
   res.json({
     success: true,
-    spot: {
-      ...spot.toObject(),
-      available: available !== null ? parseInt(available) : spot.totalSlots
-    }
+    spot: await enrichSpotWithAvailability(spot)
   });
 });
 
@@ -76,6 +86,12 @@ router.post('/', auth, async (req, res) => {
 // PATCH /api/spots/:id/availability — Operator manual update
 router.patch('/:id/availability', auth, async (req, res) => {
   const { available } = req.body;
+  const spot = await ParkingSpot.findById(req.params.id);
+  if (!spot) return res.status(404).json({ error: 'Spot not found' });
+
+  const isAllowed = req.user.role === 'ADMIN' || spot.operatorId === req.user.id;
+  if (!isAllowed) return res.status(403).json({ error: 'Not allowed to update this spot' });
+
   const spotKey = keys.spotAvailability(req.params.id);
   await redis.set(spotKey, available);
 

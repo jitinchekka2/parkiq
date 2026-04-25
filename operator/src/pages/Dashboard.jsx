@@ -6,15 +6,21 @@ import { useAuth } from '../store/auth';
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const [spots, setSpots] = useState([]);
+  const [loadingSpots, setLoadingSpots] = useState(true);
   const { logout } = useAuth();
 
   useEffect(() => {
     api.get('/api/analytics/operator').then(r => setStats(r.data.stats));
-    // Fetch operator's spots
+
+    api
+      .get('/api/spots/mine')
+      .then((r) => setSpots(r.data.spots || []))
+      .finally(() => setLoadingSpots(false));
   }, []);
 
   const updateAvailability = async (spotId, available) => {
     await api.patch(`/api/spots/${spotId}/availability`, { available });
+    setSpots((prev) => prev.map((spot) => (spot._id === spotId ? { ...spot, available } : spot)));
   };
 
   const statCard = (label, value, accent) => (
@@ -46,9 +52,48 @@ export default function Dashboard() {
 
         <div style={{ background: 'white', borderRadius: 16, padding: 24 }}>
           <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 16 }}>Your Parking Lots</div>
-          <p style={{ color: '#888', fontSize: 14 }}>
-            Add your lots via the API or contact support to get listed. Once listed, manage live availability here.
-          </p>
+
+          {loadingSpots && <p style={{ color: '#888', fontSize: 14 }}>Loading your parking lots...</p>}
+
+          {!loadingSpots && spots.length === 0 && (
+            <p style={{ color: '#888', fontSize: 14 }}>
+              You have no parking lots yet. Add your lots via the API or contact support to get listed.
+            </p>
+          )}
+
+          {!loadingSpots && spots.length > 0 && (
+            <div style={{ display: 'grid', gap: 12 }}>
+              {spots.map((spot) => (
+                <div
+                  key={spot._id}
+                  style={{ border: '1px solid #eee', borderRadius: 12, padding: 14, display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}
+                >
+                  <div>
+                    <div style={{ fontWeight: 700, marginBottom: 6 }}>{spot.name}</div>
+                    <div style={{ color: '#666', fontSize: 13 }}>{spot.address || 'Address not provided'}</div>
+                    <div style={{ color: '#444', fontSize: 13, marginTop: 6 }}>
+                      Available: {spot.available} / {spot.totalSlots}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button
+                      onClick={() => updateAvailability(spot._id, Math.max((spot.available || 0) - 1, 0))}
+                      style={{ border: '1px solid #ddd', background: 'white', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', fontWeight: 700 }}
+                    >
+                      -1
+                    </button>
+                    <button
+                      onClick={() => updateAvailability(spot._id, Math.min((spot.available || 0) + 1, spot.totalSlots))}
+                      style={{ border: '1px solid #ddd', background: 'white', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', fontWeight: 700 }}
+                    >
+                      +1
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
