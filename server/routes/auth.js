@@ -18,6 +18,15 @@ const shouldBypassSms = () => {
   return process.env.NODE_ENV !== 'production';
 };
 
+const logDevOtpFallback = ({ phone, otp, reason }) => {
+  console.error('send-otp using Dev OTP fallback', {
+    reason,
+    phone,
+    otp,
+    nodeEnv: process.env.NODE_ENV,
+  });
+};
+
 // POST /api/auth/send-otp
 router.post('/send-otp', async (req, res) => {
   const { phone } = req.body;
@@ -32,6 +41,7 @@ router.post('/send-otp', async (req, res) => {
 
   if (!twilioClient) {
     if (shouldBypassSms()) {
+      logDevOtpFallback({ phone, otp, reason: 'twilio_not_configured' });
       return res.json({
         success: true,
         otp,
@@ -56,6 +66,7 @@ router.post('/send-otp', async (req, res) => {
     });
 
     if (shouldBypassSms()) {
+      logDevOtpFallback({ phone, otp, reason: 'twilio_send_failed' });
       return res.json({
         success: true,
         otp,
